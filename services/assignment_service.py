@@ -7,45 +7,37 @@ from datetime import date
 
 
 def process_assignment(db: Session, request: AssignRequest):
-    # Get students from database by IDs
-    students = [(student_id, request.exam_name) for student_id in request.students]
+    # Extract student_id and exam_name from each student object
+    students = [(student.student_id, student.exam_name) for student in request.students]
     
-    # Get room details from database
-    room_details = []
-    for room_id in request.rooms:
-        room = crud.get_room(db, room_id)
-        if room:
-            room_details.append((room.room_id, room.rows, room.cols, room.skip_rows))
+    # Convert RoomRequest objects to tuples in the format expected by assign_students_to_rooms
+    room_tuples = []
+    for room in request.rooms:
+        room_tuples.append((room.room_id, room.rows, room.cols, room.skip_rows))
     
-    # If no rooms found, return None
-    if not room_details:
-        return None
-    
-    # Call the assignment algorithm
-    result = assign_students_to_rooms(students, room_details)
+    # Call the assignment algorithm with correctly formatted inputs
+    result = assign_students_to_rooms(students, room_tuples)
     if result is None:
         return None
 
-    # Save assignments to database
+    # Create assignments list without database interaction
     assignments = []
     for student_id, (rid, r, c) in result.items():
-        db_assignment = crud.create_assignment(
-            db=db,
+        # Find the exam_name for this student_id
+        exam_name = next(student.exam_name for student in request.students 
+                         if student.student_id == student_id)
+        
+        # Create assignment object without saving to database
+        assignments.append(AssignmentOut(
+            id=0,  # Placeholder ID since we're not using the database
             student_id=student_id,
             room_id=rid,
-            exam_name=request.exam_name,
+            exam_name=exam_name,
             row=r,
-            col=c
-        )
-        assignments.append(AssignmentOut(
-            id=db_assignment.id,
-            student_id=db_assignment.student_id,
-            room_id=db_assignment.room_id,
-            exam_name=db_assignment.exam_name,
-            row=db_assignment.row,
-            col=db_assignment.col,
-            date=db_assignment.date
+            col=c,
+            date=date.today()  # Current date as default
         ))
+    
     return assignments
 
 def get_assignments(db: Session, skip: int = 0, limit: int = 100):

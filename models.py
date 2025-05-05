@@ -77,10 +77,19 @@ class AssignmentOut(BaseModel):
     class Config:
         from_attributes = True
 
-class AssignRequest(BaseModel):
-    students: List[int]  # List of student IDs
-    rooms: List[str]     # List of room IDs
+class StudentExamRequest(BaseModel):
+    student_id: int
     exam_name: str
+
+class RoomRequest(BaseModel):
+    room_id: str
+    rows: int
+    cols: int
+    skip_rows: bool
+
+class AssignRequest(BaseModel):
+    students: List[StudentExamRequest]
+    rooms: List[RoomRequest]
 
 class AssignResponse(BaseModel):
     assignments: List[AssignmentOut]
