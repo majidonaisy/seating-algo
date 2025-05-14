@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes import router
+import models
+from database import engine
+
+# Create database tables
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Student Exam Room Assignment API",
@@ -17,8 +22,13 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-app.include_router(router)
+# Include all routes
+app.include_router(router, prefix="/api/v1")
     
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Student Exam Room Assignment API"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -2,6 +2,40 @@ from sqlalchemy.orm import Session
 import models
 from typing import List, Optional
 from datetime import date
+from auth import get_password_hash
+
+
+# User CRUD operations
+def create_user(db: Session, email: str, name: str, password: str):
+    hashed_password = get_password_hash(password)
+    db_user = models.User(email=email, name=name, hashed_password=hashed_password)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+def get_user(db: Session, user_id: int):
+    return db.query(models.User).filter(models.User.id == user_id).first()
+
+def get_user_by_email(db: Session, email: str):
+    return db.query(models.User).filter(models.User.email == email).first()
+
+def get_users(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.User).offset(skip).limit(limit).all()
+
+def update_user(db: Session, user_id: int, name: Optional[str] = None, 
+                email: Optional[str] = None, is_active: Optional[bool] = None):
+    db_user = get_user(db, user_id)
+    if db_user:
+        if name is not None:
+            db_user.name = name
+        if email is not None:
+            db_user.email = email
+        if is_active is not None:
+            db_user.is_active = is_active
+        db.commit()
+        db.refresh(db_user)
+    return db_user
 
 
 # Student CRUD operations
