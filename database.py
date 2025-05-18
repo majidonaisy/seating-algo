@@ -3,7 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # Use SQLite for simplicity - replace with your preferred database URL
-SQLALCHEMY_DATABASE_URL = "postgresql://seatingdb_user:nRIjmpnUoQ7s6yAzTCFs1AxO9fkxJwpX@dpg-d0kp4nl6ubrc73bfpgug-a/seatingdb"
+SQLALCHEMY_DATABASE_URL = "postgresql://seatingdb_user:nRIjmpnUoQ7s6yAzTCFs1AxO9fkxJwpX@dpg-d0kp4nl6ubrc73bfpgug-a.ohio-postgres.render.com/seatingdb"
 
 # Create engine
 engine = create_engine(
