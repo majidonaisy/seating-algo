@@ -16,13 +16,13 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(Date, default=date.today)
 
-class Student(Base):
-    __tablename__ = "students"
+# class Student(Base):
+#     __tablename__ = "students"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), index=True)
-    major = Column(String(100))
-    assignments = relationship("Assignment", back_populates="student")
+#     id = Column(Integer, primary_key=True, index=True)
+#     name = Column(String(100), index=True)
+#     major = Column(String(100))
+#     assignments = relationship("Assignment", back_populates="student")
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -32,21 +32,21 @@ class Room(Base):
     rows = Column(Integer)
     cols = Column(Integer)
     skip_rows = Column(Boolean, default=False)
-    assignments = relationship("Assignment", back_populates="room")
+    # assignments = relationship("Assignment", back_populates="room")
 
-class Assignment(Base):
-    __tablename__ = "assignments"
+# class Assignment(Base):
+#     __tablename__ = "assignments"
 
-    id = Column(Integer, primary_key=True, index=True)
-    student_id = Column(Integer, ForeignKey("students.id"))
-    room_id = Column(String(50), ForeignKey("rooms.room_id"))
-    exam_name = Column(String(100))
-    row = Column(Integer)
-    col = Column(Integer)
-    date = Column(Date, default=date.today)
+#     id = Column(Integer, primary_key=True, index=True)
+#     student_id = Column(Integer, ForeignKey("students.id"))
+#     room_id = Column(String(50), ForeignKey("rooms.room_id"))
+#     exam_name = Column(String(100))
+#     row = Column(Integer)
+#     col = Column(Integer)
+#     date = Column(Date, default=date.today)
     
-    student = relationship("Student", back_populates="assignments")
-    room = relationship("Room", back_populates="assignments")
+#     student = relationship("Student", back_populates="assignments")
+#     room = relationship("Room", back_populates="assignments")
 
 # Pydantic Models (for API request/response)
 # User models for authentication
