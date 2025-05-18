@@ -14,9 +14,11 @@ def process_assignment(db: Session, request: AssignRequest):
     room_tuples = []
     for room in request.rooms:
         room_tuples.append((room.room_id, room.rows, room.cols, room.skip_rows))
+    # Call the assignment function
     
-    # Call the assignment algorithm with correctly formatted inputs
-    result = assign_students_to_rooms(students, room_tuples)
+    # Pass exam_room_restrictions to the assignment algorithm
+    exam_room_restrictions = request.exam_room_restrictions or {}
+    result = assign_students_to_rooms(students, room_tuples, exam_room_restrictions)
     if result is None:
         return None
 

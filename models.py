@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date
 from sqlalchemy.orm import relationship
 from database import Base
@@ -127,6 +127,7 @@ class RoomRequest(BaseModel):
 class AssignRequest(BaseModel):
     students: List[StudentExamRequest]
     rooms: List[RoomRequest]
+    exam_room_restrictions: Optional[Dict[str, List[str]]] = None
 
 class AssignResponse(BaseModel):
     assignments: List[AssignmentOut]
