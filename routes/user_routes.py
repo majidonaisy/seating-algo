@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 import models
 import crud
@@ -19,6 +20,10 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
 @router.post("/register", response_model=models.UserOut)
 def create_user(user: models.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, email=user.email)
@@ -30,8 +35,8 @@ def create_user(user: models.UserCreate, db: Session = Depends(get_db)):
     return crud.create_user(db=db, email=user.email, name=user.name, password=user.password)
 
 @router.post("/token", response_model=models.Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = authenticate_user(db, form_data.username, form_data.password)
+async def login_for_access_token(login: LoginRequest, db: Session = Depends(get_db)):
+    user = authenticate_user(db, login.email, login.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
