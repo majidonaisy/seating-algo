@@ -24,6 +24,11 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class UserUpdateRequest(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    is_active: bool | None = None
+
 @router.post("/register", response_model=models.UserOut)
 def create_user(user: models.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, email=user.email)
@@ -65,3 +70,10 @@ def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
               current_user = Depends(get_current_active_user)):
     users = crud.get_users(db, skip=skip, limit=limit)
     return users
+
+@router.put("/{user_id}", response_model=models.UserOut)
+def update_user(user_id: int, user_update: UserUpdateRequest, db: Session = Depends(get_db), current_user = Depends(get_current_active_user)):
+    updated_user = crud.update_user(db, user_id, name=user_update.name, email=user_update.email, is_active=user_update.is_active)
+    if updated_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return updated_user
