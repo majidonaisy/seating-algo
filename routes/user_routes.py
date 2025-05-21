@@ -25,9 +25,9 @@ class LoginRequest(BaseModel):
     password: str
 
 class UserUpdateRequest(BaseModel):
-    name: str | None = None
-    email: str | None = None
-    is_active: bool | None = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+    is_active: Optional[bool] = None
 
 @router.post("/register", response_model=models.UserOut)
 def create_user(user: models.UserCreate, db: Session = Depends(get_db)):
