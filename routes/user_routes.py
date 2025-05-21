@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from typing import Optional, List
 
 import models
 import crud
