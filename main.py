@@ -23,7 +23,7 @@ app.add_middleware(
 )
 
 # Include all routes
-app.include_router(router, prefix="/api/v1")
+app.include_router(router)
     
 @app.get("/")
 def read_root():
