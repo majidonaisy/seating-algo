@@ -3,7 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # Use SQLite for simplicity - replace with your preferred database URL
-SQLALCHEMY_DATABASE_URL = "mssql+pyodbc://sa:s%40DB-utilities-server%4001100101%23@10.50.66.193:1433/?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes&Encrypt=yes"
+SQLALCHEMY_DATABASE_URL = "mssql+pyodbc://sa:s%40DB-utilities-server%4001100101%23@10.50.66.193:1433/StatementDatabase-Production?driver=SQL+Server+Native+Client+11.0&TrustServerCertificate=yes&Encrypt=yes"
 
 # Create engine
 engine = create_engine(
