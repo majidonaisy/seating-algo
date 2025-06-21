@@ -7,7 +7,16 @@ DATABASE_URL = "postgresql://distribution_cxzv_user:JYksx3GPf4iGQwKPXV3L155M7IIx
 
 # Create engine
 engine = create_engine(
-    DATABASE_URL
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_timeout=30,
+    max_overflow=10,
+    connect_args={
+        "connect_timeout": 60,
+        "sslmode": "require",
+        "application_name": "seating-app"
+    }
 )
 
 # Create session factory
