@@ -3,7 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from routes import router
 import models
 from database import engine
-import 
+from auth import get_password_hash
+
+
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
