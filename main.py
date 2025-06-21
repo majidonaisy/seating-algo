@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routes import router
 import models
 from database import engine
+import 
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -24,10 +25,12 @@ app.add_middleware(
 
 # Include all routes
 app.include_router(router)
+
+
     
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the Student Exam Room Assignment API"}
+    return {"message": "Welcome to the Student Exam Room Assignment API password: " + get_password_hash("password")}
 
 if __name__ == "__main__":
     import uvicorn
