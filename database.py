@@ -3,11 +3,11 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # Use SQLite for simplicity - replace with your preferred database URL
-SQLALCHEMY_DATABASE_URL = "postgresql://distribution_cxzv_user:JYksx3GPf4iGQwKPXV3L155M7IIxU0yG@dpg-d1b9jauuk2gs739h1j90-a.oregon-postgres.render.com/distribution_cxzv"
+DATABASE_URL = "postgresql://distribution_cxzv_user:JYksx3GPf4iGQwKPXV3L155M7IIxU0yG@dpg-d1b9jauuk2gs739h1j90-a.oregon-postgres.render.com/distribution_cxzv"
 
 # Create engine
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL
+    DATABASE_URL
 )
 
 # Create session factory
