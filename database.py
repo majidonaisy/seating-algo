@@ -7,7 +7,7 @@ DATABASE_URL = "postgresql://distribution_cxzv_user:JYksx3GPf4iGQwKPXV3L155M7IIx
 
 # Create engine
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
+    DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=300,
     pool_timeout=30,
