@@ -79,7 +79,7 @@ def create_room(db: Session, room_id: str, rows: int, cols: int, skip_rows: bool
     return db_room
 
 def get_rooms(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Room).offset(skip).limit(limit).all()
+    return db.query(models.Room).order_by(models.Room.id).offset(skip).limit(limit).all()
 
 def get_room(db: Session, room_id: str):
     return db.query(models.Room).filter(models.Room.room_id == room_id).first()
