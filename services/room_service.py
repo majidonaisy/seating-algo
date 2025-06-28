@@ -6,7 +6,7 @@ from models import RoomIn
 
 def create_room(db: Session, room: RoomIn):
     return crud.create_room(
-        db, room.room_id, room.rows, room.cols, room.skip_rows
+        db, room.room_id, room.rows, room.cols, room.skip_rows, room.skip_cols
     )
 
 def get_rooms(db: Session, skip: int = 0, limit: int = 100):
@@ -17,7 +17,7 @@ def get_room(db: Session, room_id: str):
 
 def update_room(db: Session, room_id: str, room: RoomIn):
     return crud.update_room(
-        db, room_id, room.rows, room.cols, room.skip_rows
+        db, room_id, room.rows, room.cols, room.skip_rows, room.skip_cols
     )
 
 def delete_room(db: Session, room_id: str):
