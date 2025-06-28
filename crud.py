@@ -71,8 +71,8 @@ def delete_student(db: Session, student_id: int):
 
 
 # Room CRUD operations
-def create_room(db: Session, room_id: str, rows: int, cols: int, skip_rows: bool):
-    db_room = models.Room(room_id=room_id, rows=rows, cols=cols, skip_rows=skip_rows)
+def create_room(db: Session, room_id: str, rows: int, cols: int, skip_rows: bool, skip_cols: bool):
+    db_room = models.Room(room_id=room_id, rows=rows, cols=cols, skip_rows=skip_rows, skip_cols=skip_cols)
     db.add(db_room)
     db.commit()
     db.refresh(db_room)
@@ -85,7 +85,8 @@ def get_room(db: Session, room_id: str):
     return db.query(models.Room).filter(models.Room.room_id == room_id).first()
 
 def update_room(db: Session, room_id: str, rows: Optional[int] = None, 
-                cols: Optional[int] = None, skip_rows: Optional[bool] = None):
+                cols: Optional[int] = None, skip_rows: Optional[bool] = None, 
+                skip_cols: Optional[bool] = None):  # Add skip_cols parameter
     db_room = get_room(db, room_id)
     if db_room:
         if rows is not None:
@@ -94,6 +95,8 @@ def update_room(db: Session, room_id: str, rows: Optional[int] = None,
             db_room.cols = cols
         if skip_rows is not None:
             db_room.skip_rows = skip_rows
+        if skip_cols is not None:  # Add skip_cols update logic
+            db_room.skip_cols = skip_cols
         db.commit()
         db.refresh(db_room)
     return db_room
