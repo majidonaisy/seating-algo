@@ -13,7 +13,7 @@ def process_assignment(db: Session, request: AssignRequest):
     # Convert RoomRequest objects to tuples in the format expected by assign_students_to_rooms
     room_tuples = []
     for room in request.rooms:
-        room_tuples.append((room.room_id, room.rows, room.cols, room.skip_rows))
+        room_tuples.append((room.room_id, room.rows, room.cols, room.skip_rows, room.skip_cols))
     # Call the assignment function
     
     # Pass exam_room_restrictions to the assignment algorithm
