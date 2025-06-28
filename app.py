@@ -20,24 +20,26 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None):
                 positions.append((r, c))
         room_positions[ki] = positions
     
-    # Build exam groupings
+    # Build exam groupings - FIXED
     exam_to_students = {}
     exam_of = {}
+    student_ids = []  # Extract just the student IDs
+    
     for s, e in students:
         exam_to_students.setdefault(e, []).append(s)
         exam_of[s] = e
+        student_ids.append(s)  # Keep track of student IDs only
     
     # Create room mapping
     room_id_to_index = {room[0]: ki for ki, room in enumerate(rooms)}
 
-    # 1) vars x[s, k, r, c]: student s in room k at (r,c)
+    # 1) vars x[s, k, r, c]: student s in room k at (r,c) - FIXED
     x = {}
-    for si, s in enumerate(students):
+    for s in student_ids:  # Use student_ids instead of students
         exam = exam_of[s]
         for ki, (rid, R, C, skip_rows, skip_cols) in enumerate(rooms):
             # Check if this room is allowed for this exam
             if exam in exam_room_restrictions and rid not in exam_room_restrictions[exam]:
-                # Skip creating variables for restricted combinations
                 continue
                 
             for r, c in room_positions[ki]:
@@ -46,21 +48,21 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None):
     # 2) room-used indicator
     y = {ki: model.NewBoolVar(f"y_{ki}") for ki in range(len(rooms))}
 
-    # 3) each student sits exactly once
-    for s in students:
+    # 3) each student sits exactly once - FIXED
+    for s in student_ids:  # Use student_ids instead of students
         model.Add(
-            sum(x.get((s, ki, r, c), 0)  # Use get() to handle missing keys
+            sum(x.get((s, ki, r, c), 0)
                 for ki, (rid, R, C, _, _) in enumerate(rooms)
                 for r, c in room_positions[ki]
-                if (s, ki, r, c) in x  # Check if the variable exists
+                if (s, ki, r, c) in x
             ) == 1
         )
 
-    # 4) no double‑booking + link to y
+    # 4) no double‑booking + link to y - FIXED
     for ki, (_, R, C, _, _) in enumerate(rooms):
         for r, c in room_positions[ki]:
-            model.Add(sum(x.get((s, ki, r, c), 0) for s in students if (s, ki, r, c) in x) <= 1)
-            for s in students:
+            model.Add(sum(x.get((s, ki, r, c), 0) for s in student_ids if (s, ki, r, c) in x) <= 1)
+            for s in student_ids:  # Use student_ids
                 if (s, ki, r, c) in x:
                     model.Add(x[s, ki, r, c] <= y[ki])
 
@@ -71,9 +73,7 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None):
         for ki, (_, R, C, _, _) in enumerate(rooms):
             for r, c in room_positions[ki]:
                 # Horizontal separation
-                for c2 in room_positions[ki]:
-                    if c2 <= c:
-                        continue
+                for c2 in [pos[1] for pos in room_positions[ki] if pos[0] == r and pos[1] > c]:
                     for i in range(len(studs)):
                         for j in range(i + 1, len(studs)):
                             s1, s2 = studs[i], studs[j]
@@ -81,10 +81,9 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None):
                                 model.Add(x[s1,ki,r,c] + x[s2,ki,r,c2] <= 1)
                             if (s2, ki, r, c) in x and (s1, ki, r, c2) in x:
                                 model.Add(x[s2,ki,r,c] + x[s1,ki,r,c2] <= 1)
+                
                 # Vertical separation
-                for r2 in range(r+1, R):
-                    if r2 not in room_positions[ki]:
-                        continue
+                for r2 in [pos[0] for pos in room_positions[ki] if pos[1] == c and pos[0] > r]:
                     for i in range(len(studs)):
                         for j in range(i + 1, len(studs)):
                             s1, s2 = studs[i], studs[j]
@@ -98,18 +97,18 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None):
 
     # 7) solve
     solver = cp_model.CpSolver()
-    # solver.parameters.max_time_in_seconds = 60
     status = solver.Solve(model)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return None
 
-    # 8) extract result
+    # 8) extract result - FIXED
     result = {}
-    for s in students:
+    for s in student_ids:  # Use student_ids
         for ki, (rid, R, C, _, _) in enumerate(rooms):
             for r, c in room_positions[ki]:
                 if (s, ki, r, c) in x and solver.Value(x[s, ki, r, c]):
                     result[s] = (rid, r, c)
+    
     return result
 
 def visualize_assignment(assignment, rooms, students):
