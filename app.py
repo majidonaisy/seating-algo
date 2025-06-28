@@ -1,40 +1,38 @@
 from ortools.sat.python import cp_model
 
 def assign_students_to_rooms(students, rooms, exam_room_restrictions=None):
-    """
-    students: list of (student_id, exam_name)
-    rooms:    list of (room_id, rows, cols, skip_rows: bool, skip_cols: bool)
-    exam_room_restrictions: dict of exam_name -> list of allowed room_ids
-    returns:  dict student_id -> (room_id, row, col)
-    """
+    """Enhanced version with optimizations"""
     model = cp_model.CpModel()
     
-    # Default to empty restrictions if None provided
     if exam_room_restrictions is None:
         exam_room_restrictions = {}
 
-    # extract IDs
-    student_ids = [s for s, _ in students]
-    exam_of = {s: e for s, e in students}
-
-    # build exam -> students map
+    # Precompute valid positions for each room
+    room_positions = {}
+    for ki, (rid, R, C, skip_rows, skip_cols) in enumerate(rooms):
+        positions = []
+        for r in range(R):
+            if skip_rows and r % 2 != 0:
+                continue
+            for c in range(C):
+                if skip_cols and c % 2 != 0:
+                    continue
+                positions.append((r, c))
+        room_positions[ki] = positions
+    
+    # Build exam groupings
     exam_to_students = {}
+    exam_of = {}
     for s, e in students:
         exam_to_students.setdefault(e, []).append(s)
-
-    # 0) helper: for each room k, compute valid rows and columns
-    valid_rows = {}
-    valid_cols = {}
-    for ki, (_, R, C, skip_rows, skip_cols) in enumerate(rooms):
-        valid_rows[ki] = [r for r in range(R) if not skip_rows or r % 2 == 0]
-        valid_cols[ki] = [c for c in range(C) if not skip_cols or c % 2 == 0]
-
-    # Create room_id to index mapping for restrictions
+        exam_of[s] = e
+    
+    # Create room mapping
     room_id_to_index = {room[0]: ki for ki, room in enumerate(rooms)}
 
     # 1) vars x[s, k, r, c]: student s in room k at (r,c)
     x = {}
-    for si, s in enumerate(student_ids):
+    for si, s in enumerate(students):
         exam = exam_of[s]
         for ki, (rid, R, C, skip_rows, skip_cols) in enumerate(rooms):
             # Check if this room is allowed for this exam
@@ -42,63 +40,58 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None):
                 # Skip creating variables for restricted combinations
                 continue
                 
-            for r in valid_rows[ki]:
-                for c in valid_cols[ki]:
-                    x[s, ki, r, c] = model.NewBoolVar(f"x_{s}_{ki}_{r}_{c}")
+            for r, c in room_positions[ki]:
+                x[s, ki, r, c] = model.NewBoolVar(f"x_{s}_{ki}_{r}_{c}")
 
     # 2) room-used indicator
     y = {ki: model.NewBoolVar(f"y_{ki}") for ki in range(len(rooms))}
 
     # 3) each student sits exactly once
-    for s in student_ids:
+    for s in students:
         model.Add(
             sum(x.get((s, ki, r, c), 0)  # Use get() to handle missing keys
                 for ki, (rid, R, C, _, _) in enumerate(rooms)
-                for r in valid_rows[ki]
-                for c in valid_cols[ki]
+                for r, c in room_positions[ki]
                 if (s, ki, r, c) in x  # Check if the variable exists
             ) == 1
         )
 
     # 4) no double‑booking + link to y
     for ki, (_, R, C, _, _) in enumerate(rooms):
-        for r in valid_rows[ki]:
-            for c in valid_cols[ki]:
-                model.Add(sum(x.get((s, ki, r, c), 0) for s in student_ids if (s, ki, r, c) in x) <= 1)
-                for s in student_ids:
-                    if (s, ki, r, c) in x:
-                        model.Add(x[s, ki, r, c] <= y[ki])
+        for r, c in room_positions[ki]:
+            model.Add(sum(x.get((s, ki, r, c), 0) for s in students if (s, ki, r, c) in x) <= 1)
+            for s in students:
+                if (s, ki, r, c) in x:
+                    model.Add(x[s, ki, r, c] <= y[ki])
 
     # 5) forbid horizontal and vertical neighbors for same‑exam
     for exam, studs in exam_to_students.items():
         if len(studs) < 2:
             continue
         for ki, (_, R, C, _, _) in enumerate(rooms):
-            for r in valid_rows[ki]:
+            for r, c in room_positions[ki]:
                 # Horizontal separation
-                for c in valid_cols[ki]:
-                    for c2 in valid_cols[ki]:
-                        if c2 <= c:
-                            continue
-                        for i in range(len(studs)):
-                            for j in range(i + 1, len(studs)):
-                                s1, s2 = studs[i], studs[j]
-                                if (s1, ki, r, c) in x and (s2, ki, r, c2) in x:
-                                    model.Add(x[s1,ki,r,c] + x[s2,ki,r,c2] <= 1)
-                                if (s2, ki, r, c) in x and (s1, ki, r, c2) in x:
-                                    model.Add(x[s2,ki,r,c] + x[s1,ki,r,c2] <= 1)
+                for c2 in room_positions[ki]:
+                    if c2 <= c:
+                        continue
+                    for i in range(len(studs)):
+                        for j in range(i + 1, len(studs)):
+                            s1, s2 = studs[i], studs[j]
+                            if (s1, ki, r, c) in x and (s2, ki, r, c2) in x:
+                                model.Add(x[s1,ki,r,c] + x[s2,ki,r,c2] <= 1)
+                            if (s2, ki, r, c) in x and (s1, ki, r, c2) in x:
+                                model.Add(x[s2,ki,r,c] + x[s1,ki,r,c2] <= 1)
                 # Vertical separation
-                for c in valid_cols[ki]:
-                    for r2 in range(r+1, R):
-                        if r2 not in valid_rows[ki]:
-                            continue
-                        for i in range(len(studs)):
-                            for j in range(i + 1, len(studs)):
-                                s1, s2 = studs[i], studs[j]
-                                if (s1, ki, r, c) in x and (s2, ki, r2, c) in x:
-                                    model.Add(x[s1,ki,r,c] + x[s2,ki,r2,c] <= 1)
-                                if (s2, ki, r, c) in x and (s1, ki, r2, c) in x:
-                                    model.Add(x[s2,ki,r,c] + x[s1,ki,r2,c] <= 1)
+                for r2 in range(r+1, R):
+                    if r2 not in room_positions[ki]:
+                        continue
+                    for i in range(len(studs)):
+                        for j in range(i + 1, len(studs)):
+                            s1, s2 = studs[i], studs[j]
+                            if (s1, ki, r, c) in x and (s2, ki, r2, c) in x:
+                                model.Add(x[s1,ki,r,c] + x[s2,ki,r2,c] <= 1)
+                            if (s2, ki, r, c) in x and (s1, ki, r2, c) in x:
+                                model.Add(x[s2,ki,r,c] + x[s1,ki,r2,c] <= 1)
 
     # 6) objective: minimize rooms used
     model.Minimize(sum(y.values()))
@@ -112,12 +105,11 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None):
 
     # 8) extract result
     result = {}
-    for s in student_ids:
+    for s in students:
         for ki, (rid, R, C, _, _) in enumerate(rooms):
-            for r in valid_rows[ki]:
-                for c in valid_cols[ki]:
-                    if (s, ki, r, c) in x and solver.Value(x[s, ki, r, c]):
-                        result[s] = (rid, r, c)
+            for r, c in room_positions[ki]:
+                if (s, ki, r, c) in x and solver.Value(x[s, ki, r, c]):
+                    result[s] = (rid, r, c)
     return result
 
 def visualize_assignment(assignment, rooms, students):
