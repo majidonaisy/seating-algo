@@ -21,7 +21,7 @@ def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
 def get_users(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.User).offset(skip).limit(limit).all()
+    return db.query(models.User).order_by(models.User.id).offset(skip).limit(limit).all()
 
 def update_user(db: Session, user_id: int, name: Optional[str] = None, 
                 email: Optional[str] = None, is_active: Optional[bool] = None):
@@ -47,7 +47,7 @@ def create_student(db: Session, name: str, major: str):
     return db_student
 
 def get_students(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Student).offset(skip).limit(limit).all()
+    return db.query(models.Student).order_by(models.Student.id).offset(skip).limit(limit).all()
 
 def get_student(db: Session, student_id: int):
     return db.query(models.Student).filter(models.Student.id == student_id).first()
@@ -123,7 +123,7 @@ def create_assignment(db: Session, student_id: int, room_id: str, exam_name: str
     return db_assignment
 
 def get_assignments(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Assignment).offset(skip).limit(limit).all()
+    return db.query(models.Assignment).order_by(models.Assignment.id).offset(skip).limit(limit).all()
 
 def get_student_assignments(db: Session, student_id: int):
     return db.query(models.Assignment).filter(models.Assignment.student_id == student_id).all()
