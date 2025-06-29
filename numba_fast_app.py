@@ -3,7 +3,6 @@ from numba import jit, prange
 from ortools.sat.python import cp_model
 import time
 
-@jit(nopython=True)
 def compute_room_positions_numba(rooms_data):
     """Fast room position computation using Numba"""
     # rooms_data: array of [rows, cols, skip_rows, skip_cols]
