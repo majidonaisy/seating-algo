@@ -23,7 +23,7 @@ except ImportError:
 
 from app import assign_students_to_rooms
 
-def process_assignment(db: Session, request: AssignRequest, solver_preference="ultra_fast"):
+def process_assignment(db: Session, request: AssignRequest, solver_preference="numba"):
     """Process assignment with best available solver"""
     try:
         print("Processing assignment request...")
@@ -55,6 +55,11 @@ def process_assignment(db: Session, request: AssignRequest, solver_preference="u
             print("🚀 Using ultra-fast solver...")
             result = assign_students_to_rooms_ultra_fast(
                 students, room_tuples, exam_room_restrictions, timeout_seconds=60
+            )
+        elif solver_preference == "numba" and NUMBA_AVAILABLE:
+            print("⚡ Using Numba solver...")
+            result = assign_students_to_rooms_numba(
+                students, room_tuples, exam_room_restrictions, timeout_seconds=90
             )
         else:
             print("🐍 Using original solver...")
