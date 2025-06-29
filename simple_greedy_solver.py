@@ -59,7 +59,10 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
     
     assignment = {}
     
-    # Step 4: Assign each exam group
+    # Step 4: Assign each exam group with improved strategy
+    room_exam_counts = {rid: defaultdict(int) for rid in room_info.keys()}  # Track exams per room
+    room_student_counts = {rid: 0 for rid in room_info.keys()}  # Track students per room
+    
     for exam, exam_students in sorted_exams:
         print(f"Assigning {len(exam_students)} students for {exam}")
         
@@ -70,14 +73,44 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
                 continue
             available_rooms.append((rid, info))
         
-        # Sort rooms by available capacity
-        available_rooms.sort(key=lambda x: len(x[1]['positions']) - len(x[1]['used']), reverse=True)
+        # Sort rooms by priority:
+        # 1. Rooms that already have students (fill existing rooms first)
+        # 2. Rooms with different exams (promote diversity)
+        # 3. Available capacity
+        def room_priority(room_item):
+            rid, info = room_item
+            students_in_room = room_student_counts[rid]
+            available_capacity = len(info['positions']) - len(info['used'])
+            exams_in_room = len(room_exam_counts[rid])
+            has_current_exam = room_exam_counts[rid][exam] > 0
+            
+            # Priority score (lower is better)
+            priority = 0
+            
+            # Strongly prefer rooms that already have students (fill before opening new)
+            if students_in_room == 0:
+                priority += 1000  # Penalty for empty rooms
+            
+            # Prefer rooms with different exams (diversity bonus)
+            if exams_in_room > 0 and not has_current_exam:
+                priority -= 500  # Bonus for adding diversity
+            
+            # Penalty for rooms with only one exam type (avoid single-exam rooms)
+            if exams_in_room == 1 and has_current_exam:
+                priority += 200  # Penalty for same-exam-only rooms
+            
+            # Prefer rooms with more available capacity
+            priority += (len(info['positions']) - available_capacity) * 10
+            
+            return priority
+        
+        available_rooms.sort(key=room_priority)
         
         # Assign each student in this exam
         for student in exam_students:
             assigned = False
             
-            # Try each available room
+            # Try each available room in priority order
             for room_id, room_info_dict in available_rooms:
                 position = find_valid_position(
                     student, exam, room_id, room_info_dict, student_to_exam
@@ -88,16 +121,34 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
                     assignment[student] = (room_id, row, col)
                     room_info_dict['used'].add(position)
                     room_info_dict['assignments'][student] = position
+                    
+                    # Update tracking
+                    room_exam_counts[room_id][exam] += 1
+                    room_student_counts[room_id] += 1
+                    
                     assigned = True
                     break
             
             if not assigned:
                 print(f"Failed to assign student {student} (exam {exam})")
                 # Try to continue with partial assignment
-                # return None
+    
+    # Print room utilization summary
+    print("\n📊 Room Utilization Summary:")
+    for rid, info in room_info.items():
+        students_count = room_student_counts[rid]
+        if students_count > 0:
+            capacity = len(info['positions'])
+            utilization = students_count / capacity * 100
+            exams_in_room = list(room_exam_counts[rid].keys())
+            exam_distribution = dict(room_exam_counts[rid])
+            print(f"  {rid}: {students_count}/{capacity} students ({utilization:.1f}% full)")
+            print(f"    Exams: {exam_distribution}")
+        else:
+            print(f"  {rid}: Empty (not used)")
     
     total_time = time.time() - start_time
-    print(f"Greedy assignment completed in {total_time:.3f}s")
+    print(f"\nGreedy assignment completed in {total_time:.3f}s")
     print(f"Assigned {len(assignment)} out of {len(students)} students")
     
     return assignment
@@ -146,27 +197,156 @@ def is_position_valid(pos, exam, room_info_dict, student_to_exam):
 
 def assign_students_smart_greedy(students, rooms, exam_room_restrictions=None, timeout_seconds=60):
     """
-    Smart greedy with backtracking and local optimization
+    Smart greedy with improved room utilization and exam diversity
     """
     print(f"🧠 Starting Smart Greedy assignment for {len(students)} students")
     start_time = time.time()
     
-    # First try simple greedy
+    # First try improved greedy
     assignment = assign_students_greedy(students, rooms, exam_room_restrictions, timeout_seconds//2)
     
     if not assignment or len(assignment) < len(students):
-        print("Simple greedy failed, trying with backtracking...")
-        # Could implement backtracking here
+        print("Improved greedy failed, returning partial result...")
         return assignment
     
-    # Try to improve with local search
-    print("Improving assignment with local search...")
-    improved = improve_assignment_local_search(assignment, students, rooms, max_iterations=100)
+    # Analyze current assignment
+    print("\n🔍 Analyzing assignment quality...")
+    room_analysis = analyze_room_diversity(assignment, students)
+    
+    # Try to improve diversity and utilization
+    print("📈 Improving assignment with diversity optimization...")
+    improved = improve_assignment_diversity(assignment, students, rooms, room_analysis, max_iterations=50)
+    
+    # Try standard local search for further improvements
+    if improved:
+        print("🔄 Applying local search optimization...")
+        final_improved = improve_assignment_local_search(improved, students, rooms, max_iterations=50)
+        if final_improved:
+            improved = final_improved
     
     total_time = time.time() - start_time
     print(f"Smart greedy completed in {total_time:.3f}s")
     
+    # Final analysis
+    print("\n📊 Final Assignment Analysis:")
+    final_analysis = analyze_room_diversity(improved if improved else assignment, students)
+    
     return improved if improved else assignment
+
+def analyze_room_diversity(assignment, students):
+    """Analyze exam diversity and room utilization"""
+    if not assignment:
+        return {}
+    
+    student_to_exam = {s: e for s, e in students}
+    room_stats = defaultdict(lambda: {'exams': defaultdict(int), 'total': 0})
+    
+    # Collect room statistics
+    for student, (room_id, row, col) in assignment.items():
+        exam = student_to_exam[student]
+        room_stats[room_id]['exams'][exam] += 1
+        room_stats[room_id]['total'] += 1
+    
+    # Analyze each room
+    analysis = {}
+    single_exam_rooms = []
+    
+    for room_id, stats in room_stats.items():
+        num_exams = len(stats['exams'])
+        total_students = stats['total']
+        exam_distribution = dict(stats['exams'])
+        
+        analysis[room_id] = {
+            'num_exams': num_exams,
+            'total_students': total_students,
+            'exam_distribution': exam_distribution,
+            'is_single_exam': num_exams == 1,
+            'diversity_score': num_exams / max(total_students, 1)  # Higher is better
+        }
+        
+        if num_exams == 1 and total_students > 1:
+            single_exam_rooms.append(room_id)
+            print(f"⚠️  Room {room_id}: Single exam ({list(exam_distribution.keys())[0]}) with {total_students} students")
+        else:
+            print(f"✅ Room {room_id}: {num_exams} exams, {total_students} students - {exam_distribution}")
+    
+    analysis['single_exam_rooms'] = single_exam_rooms
+    analysis['total_rooms_used'] = len(room_stats)
+    
+    return analysis
+
+def improve_assignment_diversity(assignment, students, rooms, room_analysis, max_iterations=50):
+    """Improve assignment by promoting exam diversity within rooms"""
+    if not assignment:
+        return None
+    
+    current_assignment = assignment.copy()
+    student_to_exam = {s: e for s, e in students}
+    single_exam_rooms = room_analysis.get('single_exam_rooms', [])
+    
+    if not single_exam_rooms:
+        print("✅ No single-exam rooms found, diversity is good!")
+        return current_assignment
+    
+    print(f"🎯 Attempting to diversify {len(single_exam_rooms)} single-exam rooms...")
+    
+    improvements_made = 0
+    
+    for iteration in range(max_iterations):
+        improved_this_iteration = False
+        
+        # For each single-exam room, try to find students from other rooms to swap
+        for single_room in single_exam_rooms:
+            single_room_students = [
+                (s, pos) for s, pos in current_assignment.items() 
+                if pos[0] == single_room
+            ]
+            
+            if not single_room_students:
+                continue
+            
+            single_exam = student_to_exam[single_room_students[0][0]]
+            
+            # Find students from other exams in different rooms
+            for student, (room_id, row, col) in current_assignment.items():
+                if room_id == single_room:
+                    continue
+                
+                student_exam = student_to_exam[student]
+                if student_exam == single_exam:
+                    continue
+                
+                # Try to swap this student with someone from the single-exam room
+                for single_student, (_, single_row, single_col) in single_room_students:
+                    # Create potential swap
+                    new_assignment = current_assignment.copy()
+                    new_assignment[student] = (single_room, single_row, single_col)
+                    new_assignment[single_student] = (room_id, row, col)
+                    
+                    # Check if swap is valid
+                    if is_assignment_valid_local(new_assignment, students):
+                        current_assignment = new_assignment
+                        improvements_made += 1
+                        improved_this_iteration = True
+                        print(f"🔄 Swapped student {student} ({student_exam}) with {single_student} ({single_exam})")
+                        
+                        # Update single room list if this room now has diversity
+                        new_analysis = analyze_room_diversity(current_assignment, students)
+                        if single_room not in new_analysis.get('single_exam_rooms', []):
+                            single_exam_rooms.remove(single_room)
+                        break
+                
+                if improved_this_iteration:
+                    break
+            
+            if improved_this_iteration:
+                break
+        
+        if not improved_this_iteration:
+            break
+    
+    print(f"🎉 Diversity improvements made: {improvements_made}")
+    return current_assignment if improvements_made > 0 else assignment
 
 def improve_assignment_local_search(assignment, students, rooms, max_iterations=100):
     """Improve assignment using local search"""
