@@ -106,12 +106,14 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
         while i < len(exam_students):
             assigned = False
             for room_id, room_info_dict in available_rooms:
+                # Always calculate available spots
+                available_spots = len(room_info_dict['positions']) - len(room_info_dict['used'])
+
                 # Check if this room already has a different exam
                 existing_exams = set(room_info_dict['assignments'].keys())
                 existing_exam_types = set(student_to_exam[s] for s in existing_exams)
                 if existing_exam_types and exam not in existing_exam_types:
                     # Only allow if we can fit at least MIN_GROUP_SIZE_FOR_MIX students
-                    available_spots = len(room_info_dict['positions']) - len(room_info_dict['used'])
                     if available_spots < MIN_GROUP_SIZE_FOR_MIX:
                         continue  # Skip this room for this exam
 
