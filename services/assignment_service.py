@@ -1,15 +1,30 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
-import crud
 from models import AssignmentIn, AssignmentOut, AssignRequest
-from numba_fast_app import assign_students_to_rooms_numba
-from app import assign_students_to_rooms
-import time
 from datetime import date
+import time
 
+# Import available solvers
+try:
+    from ultra_fast_app import assign_students_to_rooms_ultra_fast
+    ULTRA_FAST_AVAILABLE = True
+    print("✅ Ultra-fast solver available")
+except ImportError:
+    ULTRA_FAST_AVAILABLE = False
+    print("⚠️ Ultra-fast solver not available")
 
-def process_assignment(db: Session, request: AssignRequest, use_numba=True):
-    """Process assignment with optional Numba optimization"""
+try:
+    from numba_fast_app import assign_students_to_rooms_numba
+    NUMBA_AVAILABLE = True
+    print("✅ Numba solver available")
+except ImportError:
+    NUMBA_AVAILABLE = False
+    print("⚠️ Numba solver not available")
+
+from app import assign_students_to_rooms
+
+def process_assignment(db: Session, request: AssignRequest, solver_preference="ultra_fast"):
+    """Process assignment with best available solver"""
     try:
         print("Processing assignment request...")
         start_time = time.time()
@@ -19,14 +34,30 @@ def process_assignment(db: Session, request: AssignRequest, use_numba=True):
                       for room in request.rooms]
         exam_room_restrictions = request.exam_room_restrictions or {}
         
-        # Choose algorithm
-        if use_numba:
-            print("Using Numba-optimized solver...")
-            result = assign_students_to_rooms_numba(
+        # Choose best available solver
+        if solver_preference == "auto":
+            if ULTRA_FAST_AVAILABLE:
+                print("🚀 Using ultra-fast solver...")
+                result = assign_students_to_rooms_ultra_fast(
+                    students, room_tuples, exam_room_restrictions, timeout_seconds=60
+                )
+            elif NUMBA_AVAILABLE:
+                print("⚡ Using Numba solver...")
+                result = assign_students_to_rooms_numba(
+                    students, room_tuples, exam_room_restrictions, timeout_seconds=90
+                )
+            else:
+                print("🐍 Using original solver...")
+                result = assign_students_to_rooms(
+                    students, room_tuples, exam_room_restrictions, timeout_seconds=180
+                )
+        elif solver_preference == "ultra_fast" and ULTRA_FAST_AVAILABLE:
+            print("🚀 Using ultra-fast solver...")
+            result = assign_students_to_rooms_ultra_fast(
                 students, room_tuples, exam_room_restrictions, timeout_seconds=60
             )
         else:
-            print("Using original Python solver...")
+            print("🐍 Using original solver...")
             result = assign_students_to_rooms(
                 students, room_tuples, exam_room_restrictions, timeout_seconds=180
             )
