@@ -74,33 +74,19 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
             available_rooms.append((rid, info))
         
         # Sort rooms by priority:
-        # 1. Rooms that already have students (fill existing rooms first)
-        # 2. Rooms with different exams (promote diversity)
-        # 3. Available capacity
+        # 1. Prefer rooms with the most available capacity
+        # 2. Prefer rooms already in use (to avoid opening new rooms unnecessarily)
         def room_priority(room_item):
             rid, info = room_item
-            students_in_room = room_student_counts[rid]
             available_capacity = len(info['positions']) - len(info['used'])
-            exams_in_room = len(room_exam_counts[rid])
-            has_current_exam = room_exam_counts[rid][exam] > 0
+            students_in_room = room_student_counts[rid]
             
             # Priority score (lower is better)
-            priority = 0
+            priority = -available_capacity * 100  # Strongly prefer more available capacity
             
-            # Strongly prefer rooms that already have students (fill before opening new)
-            if students_in_room == 0:
-                priority += 1000  # Penalty for empty rooms
-            
-            # Prefer rooms with different exams (diversity bonus)
-            if exams_in_room > 0 and not has_current_exam:
-                priority -= 500  # Bonus for adding diversity
-            
-            # Penalty for rooms with only one exam type (avoid single-exam rooms)
-            if exams_in_room == 1 and has_current_exam:
-                priority += 200  # Penalty for same-exam-only rooms
-            
-            # Prefer rooms with more available capacity
-            priority += (len(info['positions']) - available_capacity) * 10
+            # Slight bonus for rooms already in use
+            if students_in_room > 0:
+                priority -= 10
             
             return priority
         
