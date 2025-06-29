@@ -80,14 +80,21 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
             rid, info = room_item
             available_capacity = len(info['positions']) - len(info['used'])
             students_in_room = room_student_counts[rid]
+            exams_in_room = len(room_exam_counts[rid])
             
-            # Priority score (lower is better)
-            priority = -available_capacity * 100  # Strongly prefer more available capacity
+            # Encourage rooms with other exams (diversity)
+            diversity_bonus = 0
+            if students_in_room > 0 and exams_in_room > 0:
+                diversity_bonus = -50  # Prefer rooms with other exams
             
-            # Slight bonus for rooms already in use
-            if students_in_room > 0:
-                priority -= 10
+            # Strongly penalize opening a new room if only a few students remain
+            few_students_left = len(exam_students) <= 5
+            empty_room_penalty = 0
+            if students_in_room == 0 and few_students_left:
+                empty_room_penalty = 1000  # Large penalty
             
+            # Priority: fill up rooms, encourage diversity, avoid opening new rooms for few students
+            priority = -available_capacity * 100 + diversity_bonus + empty_room_penalty
             return priority
         
         available_rooms.sort(key=room_priority)
@@ -375,104 +382,4 @@ def improve_assignment_local_search(assignment, students, rooms, max_iterations=
 
 def is_assignment_valid_local(assignment, students):
     """Quick local validity check for assignment"""
-    student_to_exam = {s: e for s, e in students}
-    
-    # Group by room
-    room_assignments = defaultdict(list)
-    for student, (room_id, row, col) in assignment.items():
-        room_assignments[room_id].append((student, row, col))
-    
-    # Check each room for adjacency violations
-    for room_id, room_students in room_assignments.items():
-        for i, (s1, r1, c1) in enumerate(room_students):
-            for j, (s2, r2, c2) in enumerate(room_students):
-                if i >= j:
-                    continue
-                
-                # Check if adjacent
-                if abs(r1 - r2) + abs(c1 - c2) == 1:
-                    # Check if same exam
-                    if student_to_exam[s1] == student_to_exam[s2]:
-                        return False
-    
-    return True
-
-def visualize_assignment_simple(assignment, rooms, students):
-    """Simple visualization"""
-    if not assignment:
-        print("No assignment to visualize")
-        return
-    
-    print("\n" + "="*50)
-    print("SIMPLE ASSIGNMENT VISUALIZATION")
-    print("="*50)
-    
-    student_to_exam = {s: e for s, e in students}
-    
-    # Group by room
-    room_assignments = defaultdict(list)
-    for student, (room_id, row, col) in assignment.items():
-        room_assignments[room_id].append((student, row, col))
-    
-    for room_id, assignments in room_assignments.items():
-        print(f"\n{room_id}: {len(assignments)} students")
-        
-        # Find room dimensions
-        room_info = next((r for r in rooms if r[0] == room_id), None)
-        if room_info:
-            _, rows, cols, skip_rows, skip_cols = room_info
-            
-            # Create simple grid
-            grid = [['.' for _ in range(cols)] for _ in range(rows)]
-            
-            # Mark occupied positions
-            for student, row, col in assignments:
-                if 0 <= row < rows and 0 <= col < cols:
-                    exam = student_to_exam.get(student, "?")
-                    grid[row][col] = f"{student}({exam[0]})"
-            
-            # Print grid
-            for r, row_data in enumerate(grid):
-                print(f"  Row {r}: " + " ".join(f"{cell:>8}" for cell in row_data))
-
-# Test function
-def test_greedy_solvers():
-    """Test the greedy implementations"""
-    print("Testing Greedy Seating Assignment Solvers")
-    print("=" * 60)
-    
-    # Test data
-    students = [
-        (1, "Math"), (2, "Math"), (3, "Math"), (4, "Math"),
-        (5, "Physics"), (6, "Physics"), (7, "Physics"), (8, "Physics"),
-        (9, "Chemistry"), (10, "Chemistry"), (11, "Chemistry"), (12, "Chemistry"),
-        (13, "Biology"), (14, "Biology"), (15, "Biology"), (16, "Biology"),
-    ]
-    
-    rooms = [
-        ("RoomA", 3, 4, False, True),   # 6 seats
-        ("RoomB", 4, 5, False, False),  # 20 seats
-        ("RoomC", 3, 3, True, False),   # 6 seats
-    ]
-    
-    print(f"Test: {len(students)} students, {len(rooms)} rooms")
-    
-    # Test simple greedy
-    result1 = assign_students_greedy(students, rooms, {}, 30)
-    if result1:
-        print(f"✅ Simple Greedy: {len(result1)}/{len(students)} students assigned")
-        visualize_assignment_simple(result1, rooms, students)
-    else:
-        print("❌ Simple Greedy failed")
-    
-    print("\n" + "="*60)
-    
-    # Test smart greedy
-    result2 = assign_students_smart_greedy(students, rooms, {}, 30)
-    if result2:
-        print(f"✅ Smart Greedy: {len(result2)}/{len(students)} students assigned")
-    else:
-        print("❌ Smart Greedy failed")
-
-if __name__ == "__main__":
-    test_greedy_solvers()
+    student_to_exam = {s: e for s, e
