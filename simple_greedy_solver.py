@@ -63,6 +63,8 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
     room_exam_counts = {rid: defaultdict(int) for rid in room_info.keys()}  # Track exams per room
     room_student_counts = {rid: 0 for rid in room_info.keys()}  # Track students per room
     
+    MIN_GROUP_SIZE_FOR_MIX = 10  # You can adjust this value
+
     for exam, exam_students in sorted_exams:
         print(f"Assigning {len(exam_students)} students for {exam}")
         
@@ -100,31 +102,45 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
         available_rooms.sort(key=room_priority)
         
         # Assign each student in this exam
-        for student in exam_students:
+        i = 0
+        while i < len(exam_students):
             assigned = False
-            
-            # Try each available room in priority order
             for room_id, room_info_dict in available_rooms:
-                position = find_valid_position(
-                    student, exam, room_id, room_info_dict, student_to_exam
-                )
-                
-                if position:
-                    row, col = position
-                    assignment[student] = (room_id, row, col)
-                    room_info_dict['used'].add(position)
-                    room_info_dict['assignments'][student] = position
-                    
-                    # Update tracking
-                    room_exam_counts[room_id][exam] += 1
-                    room_student_counts[room_id] += 1
-                    
+                # Check if this room already has a different exam
+                existing_exams = set(room_info_dict['assignments'].keys())
+                existing_exam_types = set(student_to_exam[s] for s in existing_exams)
+                if existing_exam_types and exam not in existing_exam_types:
+                    # Only allow if we can fit at least MIN_GROUP_SIZE_FOR_MIX students
+                    available_spots = len(room_info_dict['positions']) - len(room_info_dict['used'])
+                    if available_spots < MIN_GROUP_SIZE_FOR_MIX:
+                        continue  # Skip this room for this exam
+
+                # Try to assign as many as possible in this room
+                group_assigned = 0
+                for j in range(i, len(exam_students)):
+                    student = exam_students[j]
+                    position = find_valid_position(
+                        student, exam, room_id, room_info_dict, student_to_exam
+                    )
+                    if position:
+                        row, col = position
+                        assignment[student] = (room_id, row, col)
+                        room_info_dict['used'].add(position)
+                        room_info_dict['assignments'][student] = position
+                        room_exam_counts[room_id][exam] += 1
+                        room_student_counts[room_id] += 1
+                        group_assigned += 1
+                    else:
+                        break
+                    if group_assigned >= available_spots:
+                        break
+                if group_assigned > 0:
+                    i += group_assigned
                     assigned = True
                     break
-            
             if not assigned:
-                print(f"Failed to assign student {student} (exam {exam})")
-                # Try to continue with partial assignment
+                # Could not assign this student/group, try next student
+                i += 1
     
     # Print room utilization summary
     print("\n📊 Room Utilization Summary:")
