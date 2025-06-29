@@ -2,55 +2,51 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import crud
 from models import AssignmentIn, AssignmentOut, AssignRequest
+from numba_fast_app import assign_students_to_rooms_numba
 from app import assign_students_to_rooms
+import time
 from datetime import date
 
 
-def process_assignment(db: Session, request: AssignRequest):
+def process_assignment(db: Session, request: AssignRequest, use_numba=True):
+    """Process assignment with optional Numba optimization"""
     try:
         print("Processing assignment request...")
+        start_time = time.time()
         
-        # Extract student_id and exam_name from each student object
         students = [(student.student_id, student.exam_name) for student in request.students]
-        print(f"Students: {students}")
-        
-        # Convert RoomRequest objects to tuples
-        room_tuples = []
-        for room in request.rooms:
-            room_tuples.append((room.room_id, room.rows, room.cols, room.skip_rows, room.skip_cols))
-        print(f"Room tuples: {room_tuples}")
-        
-        # Pass exam_room_restrictions to the assignment algorithm
+        room_tuples = [(room.room_id, room.rows, room.cols, room.skip_rows, room.skip_cols) 
+                      for room in request.rooms]
         exam_room_restrictions = request.exam_room_restrictions or {}
-        print(f"Restrictions: {exam_room_restrictions}")
         
-        # Increase timeout for complex assignments
-        result = assign_students_to_rooms(students, room_tuples, exam_room_restrictions, timeout_seconds=180)
+        # Choose algorithm
+        if use_numba:
+            print("Using Numba-optimized solver...")
+            result = assign_students_to_rooms_numba(
+                students, room_tuples, exam_room_restrictions, timeout_seconds=60
+            )
+        else:
+            print("Using original Python solver...")
+            result = assign_students_to_rooms(
+                students, room_tuples, exam_room_restrictions, timeout_seconds=180
+            )
         
         if result is None:
             print("Assignment algorithm returned None")
             return None
 
-        # Create assignments list
+        # Convert to assignments
         assignments = []
         for student_id, (rid, r, c) in result.items():
-            # Find the exam_name for this student_id
-            exam_name = next(student.exam_name for student in request.students 
-                             if student.student_id == student_id)
-            
-            # Create assignment object
-            assignment = AssignmentOut(
-                id=0,  # Will be set by database
-                student_id=student_id,
-                room_id=rid,
-                exam_name=exam_name,
-                row=r,
-                col=c,
-                date=date.today()
-            )
-            assignments.append(assignment)
+            exam_name = next(s.exam_name for s in request.students 
+                            if s.student_id == student_id)
+            assignments.append(AssignmentOut(
+                id=0, student_id=student_id, room_id=rid,
+                exam_name=exam_name, row=r, col=c, date=date.today()
+            ))
         
-        print(f"Created {len(assignments)} assignments")
+        total_time = time.time() - start_time
+        print(f"Total processing time: {total_time:.2f}s")
         return assignments
         
     except Exception as e:
