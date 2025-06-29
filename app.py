@@ -2,11 +2,6 @@ from ortools.sat.python import cp_model
 
 def assign_students_to_rooms(students, rooms, exam_room_restrictions=None, timeout_seconds=300):
     """Enhanced version with performance optimizations and debugging"""
-    print(f"Starting assignment with {len(students)} students and {len(rooms)} rooms")
-    print(f"Students: {students}")
-    print(f"Rooms: {rooms}")
-    print(f"Restrictions: {exam_room_restrictions}")
-    
     model = cp_model.CpModel()
     
     if exam_room_restrictions is None:
