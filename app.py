@@ -1,7 +1,12 @@
 from ortools.sat.python import cp_model
 
 def assign_students_to_rooms(students, rooms, exam_room_restrictions=None, timeout_seconds=300):
-    """Enhanced version with performance optimizations"""
+    """Enhanced version with performance optimizations and debugging"""
+    print(f"Starting assignment with {len(students)} students and {len(rooms)} rooms")
+    print(f"Students: {students}")
+    print(f"Rooms: {rooms}")
+    print(f"Restrictions: {exam_room_restrictions}")
+    
     model = cp_model.CpModel()
     
     if exam_room_restrictions is None:
@@ -9,6 +14,7 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None, timeo
 
     # Precompute valid positions for each room
     room_positions = {}
+    total_capacity = 0
     for ki, (rid, R, C, skip_rows, skip_cols) in enumerate(rooms):
         positions = []
         for r in range(R):
@@ -19,20 +25,27 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None, timeo
                     continue
                 positions.append((r, c))
         room_positions[ki] = positions
+        total_capacity += len(positions)
+        print(f"Room {rid}: {len(positions)} available positions")
     
-    # Build exam groupings - FIXED
+    print(f"Total capacity: {total_capacity}, Students: {len(students)}")
+    
+    if total_capacity < len(students):
+        print("ERROR: Not enough room capacity for all students!")
+        return None
+    
+    # Build exam groupings
     exam_to_students = {}
     exam_of = {}
-    student_ids = []  # Extract just the student IDs
+    student_ids = []
     
     for s, e in students:
         exam_to_students.setdefault(e, []).append(s)
         exam_of[s] = e
-        student_ids.append(s)  # Keep track of student IDs only
+        student_ids.append(s)
     
-    # Create room mapping
-    room_id_to_index = {room[0]: ki for ki, room in enumerate(rooms)}
-
+    print(f"Exam groups: {exam_to_students}")
+    
     # OPTIMIZATION 1: Pre-filter valid room-student combinations
     valid_assignments = {}
     for s in student_ids:
@@ -41,95 +54,143 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None, timeo
         for ki, (rid, R, C, skip_rows, skip_cols) in enumerate(rooms):
             # Skip rooms not allowed for this exam
             if exam in exam_room_restrictions and rid not in exam_room_restrictions[exam]:
+                print(f"Student {s} (exam {exam}) cannot use room {rid} due to restrictions")
                 continue
             valid_assignments[s].append(ki)
+    
+    # Check if all students have at least one valid room
+    for s in student_ids:
+        if not valid_assignments[s]:
+            print(f"ERROR: Student {s} has no valid rooms!")
+            return None
+    
+    print("All students have valid room assignments")
 
     # 1) Create variables only for valid combinations
     x = {}
+    variable_count = 0
     for s in student_ids:
         for ki in valid_assignments[s]:
             for r, c in room_positions[ki]:
                 x[s, ki, r, c] = model.NewBoolVar(f"x_{s}_{ki}_{r}_{c}")
+                variable_count += 1
+    
+    print(f"Created {variable_count} variables")
 
     # 2) room-used indicator
     y = {ki: model.NewBoolVar(f"y_{ki}") for ki in range(len(rooms))}
 
-    # 3) each student sits exactly once - FIXED
-    for s in student_ids:  # Use student_ids instead of students
-        model.Add(
-            sum(x.get((s, ki, r, c), 0)
-                for ki, (rid, R, C, _, _) in enumerate(rooms)
-                for r, c in room_positions[ki]
-                if (s, ki, r, c) in x
-            ) == 1
-        )
-
-    # 4) no double‑booking + link to y - FIXED
-    for ki, (_, R, C, _, _) in enumerate(rooms):
-        for r, c in room_positions[ki]:
-            model.Add(sum(x.get((s, ki, r, c), 0) for s in student_ids if (s, ki, r, c) in x) <= 1)
-            for s in student_ids:  # Use student_ids
+    # 3) each student sits exactly once
+    constraint_count = 0
+    for s in student_ids:
+        valid_vars = []
+        for ki in valid_assignments[s]:
+            for r, c in room_positions[ki]:
                 if (s, ki, r, c) in x:
-                    model.Add(x[s, ki, r, c] <= y[ki])
+                    valid_vars.append(x[s, ki, r, c])
+        
+        if not valid_vars:
+            print(f"ERROR: No valid variables for student {s}")
+            return None
+            
+        model.Add(sum(valid_vars) == 1)
+        constraint_count += 1
 
-    # 5) forbid horizontal and vertical neighbors for same‑exam
+    # 4) no double‑booking + link to y
+    for ki in range(len(rooms)):
+        for r, c in room_positions[ki]:
+            seat_vars = [x[s, ki, r, c] for s in student_ids if (s, ki, r, c) in x]
+            if seat_vars:
+                model.Add(sum(seat_vars) <= 1)
+                constraint_count += 1
+                
+                # Link to room usage
+                for s in student_ids:
+                    if (s, ki, r, c) in x:
+                        model.Add(x[s, ki, r, c] <= y[ki])
+                        constraint_count += 1
+
+    print(f"Added {constraint_count} basic constraints")
+
+    # 5) SIMPLIFIED separation constraints - only for adjacent positions
+    separation_constraints = 0
     for exam, studs in exam_to_students.items():
         if len(studs) < 2:
             continue
-        for ki, (_, R, C, _, _) in enumerate(rooms):
-            for r, c in room_positions[ki]:
-                # Horizontal separation
-                for c2 in [pos[1] for pos in room_positions[ki] if pos[0] == r and pos[1] > c]:
-                    for i in range(len(studs)):
-                        for j in range(i + 1, len(studs)):
-                            s1, s2 = studs[i], studs[j]
-                            if (s1, ki, r, c) in x and (s2, ki, r, c2) in x:
-                                model.Add(x[s1,ki,r,c] + x[s2,ki,r,c2] <= 1)
-                            if (s2, ki, r, c) in x and (s1, ki, r, c2) in x:
-                                model.Add(x[s2,ki,r,c] + x[s1,ki,r,c2] <= 1)
-                
-                # Vertical separation
-                for r2 in [pos[0] for pos in room_positions[ki] if pos[1] == c and pos[0] > r]:
-                    for i in range(len(studs)):
-                        for j in range(i + 1, len(studs)):
-                            s1, s2 = studs[i], studs[j]
-                            if (s1, ki, r, c) in x and (s2, ki, r2, c) in x:
-                                model.Add(x[s1,ki,r,c] + x[s2,ki,r2,c] <= 1)
-                            if (s2, ki, r, c) in x and (s1, ki, r2, c) in x:
-                                model.Add(x[s2,ki,r,c] + x[s1,ki,r2,c] <= 1)
+            
+        for ki in range(len(rooms)):
+            positions = room_positions[ki]
+            
+            # Create adjacency map
+            adjacent_map = {}
+            for r, c in positions:
+                adjacent_map[(r, c)] = []
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    adj_pos = (r + dr, c + dc)
+                    if adj_pos in positions:
+                        adjacent_map[(r, c)].append(adj_pos)
+            
+            # Add separation constraints
+            for (r1, c1), neighbors in adjacent_map.items():
+                for (r2, c2) in neighbors:
+                    for i, s1 in enumerate(studs):
+                        for j, s2 in enumerate(studs):
+                            if i >= j:  # Avoid duplicate constraints
+                                continue
+                            if (s1, ki, r1, c1) in x and (s2, ki, r2, c2) in x:
+                                model.Add(x[s1, ki, r1, c1] + x[s2, ki, r2, c2] <= 1)
+                                separation_constraints += 1
+
+    print(f"Added {separation_constraints} separation constraints")
 
     # 6) objective: minimize rooms used
     model.Minimize(sum(y.values()))
 
     # 7) OPTIMIZED SOLVER SETTINGS
     solver = cp_model.CpSolver()
-    
-    # Increase timeout
     solver.parameters.max_time_in_seconds = timeout_seconds
-    
-    # Performance optimizations
-    solver.parameters.num_search_workers = 4  # Use multiple cores
+    solver.parameters.num_search_workers = 4
     solver.parameters.search_branching = cp_model.PORTFOLIO_SEARCH
     solver.parameters.cp_model_presolve = True
-    solver.parameters.symmetry_level = 2
-    solver.parameters.optimize_with_core = True
-    solver.parameters.linearization_level = 2
-    
-    # Early termination for good solutions
+    solver.parameters.symmetry_level = 1  # Reduced for speed
+    solver.parameters.linearization_level = 1  # Reduced for speed
     solver.parameters.enumerate_all_solutions = False
-    
+
+    print("Starting solver...")
     status = solver.Solve(model)
-    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+    
+    print(f"Solver status: {status}")
+    print(f"Solver statistics:")
+    print(f"  - Runtime: {solver.WallTime():.2f}s")
+    print(f"  - Conflicts: {solver.NumConflicts()}")
+    print(f"  - Branches: {solver.NumBranches()}")
+    
+    if status == cp_model.OPTIMAL:
+        print("Found optimal solution!")
+    elif status == cp_model.FEASIBLE:
+        print("Found feasible solution!")
+    else:
+        print(f"No solution found. Status: {status}")
         return None
 
-    # 8) extract result - FIXED
+    # 8) extract result
     result = {}
-    for s in student_ids:  # Use student_ids
-        for ki, (rid, R, C, _, _) in enumerate(rooms):
+    rooms_used = 0
+    for ki in range(len(rooms)):
+        if solver.Value(y[ki]):
+            rooms_used += 1
+            
+    print(f"Solution uses {rooms_used} rooms")
+    
+    for s in student_ids:
+        for ki in valid_assignments[s]:
             for r, c in room_positions[ki]:
                 if (s, ki, r, c) in x and solver.Value(x[s, ki, r, c]):
+                    rid = rooms[ki][0]
                     result[s] = (rid, r, c)
+                    break
     
+    print(f"Assigned {len(result)} students")
     return result
 
 def visualize_assignment(assignment, rooms, students):

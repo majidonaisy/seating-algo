@@ -13,11 +13,33 @@ router = APIRouter(
 
 @router.post("/assign", response_model=AssignResponse)
 def assign(req: AssignRequest, db: Session = Depends(get_db)):
-    assignments = assignment_service.process_assignment(db, req)
-    if assignments is None:
-        raise HTTPException(status_code=400, detail="No valid arrangement found within time limit")
-    
-    return AssignResponse(assignments=assignments)
+    try:
+        print(f"Received assignment request with {len(req.students)} students and {len(req.rooms)} rooms")
+        
+        assignments = assignment_service.process_assignment(db, req)
+        
+        if assignments is None:
+            raise HTTPException(
+                status_code=400, 
+                detail="No valid seating arrangement found. Possible causes: insufficient room capacity, conflicting restrictions, or timeout exceeded."
+            )
+        
+        if len(assignments) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="No students were assigned seats. Check your input data."
+            )
+        
+        print(f"Successfully created {len(assignments)} assignments")
+        return AssignResponse(assignments=assignments)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Unexpected error in assign route: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.post("/", response_model=AssignmentOut)
 def create_assignment(assignment: AssignmentIn, db: Session = Depends(get_db)):
