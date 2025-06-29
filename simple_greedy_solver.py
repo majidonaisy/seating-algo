@@ -78,23 +78,39 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
         # Sort rooms by priority:
         # 1. Prefer rooms with the most available capacity
         # 2. Prefer rooms already in use (to avoid opening new rooms unnecessarily)
+        # 3. Do not allow opening a new room unless all used rooms are at least MIN_USED_ROOM_FILL_PERCENT full
+        MIN_USED_ROOM_FILL_PERCENT = 0.8  # 80% full before opening a new room
+
         def room_priority(room_item):
             rid, info = room_item
             available_capacity = len(info['positions']) - len(info['used'])
             students_in_room = room_student_counts[rid]
             exams_in_room = len(room_exam_counts[rid])
-            
+
+            # Calculate fullness of all used rooms
+            used_rooms = [rid2 for rid2, count in room_student_counts.items() if count > 0]
+            all_used_rooms_full = True
+            for rid2 in used_rooms:
+                fill = room_student_counts[rid2] / len(room_info[rid2]['positions'])
+                if fill < MIN_USED_ROOM_FILL_PERCENT:
+                    all_used_rooms_full = False
+                    break
+
+            # Strongly penalize opening a new room if not all used rooms are full enough
+            empty_room_penalty = 0
+            if students_in_room == 0 and used_rooms and not all_used_rooms_full:
+                empty_room_penalty = 10000  # Very large penalty
+
             # Encourage rooms with other exams (diversity)
             diversity_bonus = 0
             if students_in_room > 0 and exams_in_room > 0:
                 diversity_bonus = -50  # Prefer rooms with other exams
-            
+
             # Strongly penalize opening a new room if only a few students remain
             few_students_left = len(exam_students) <= 5
-            empty_room_penalty = 0
             if students_in_room == 0 and few_students_left:
-                empty_room_penalty = 1000  # Large penalty
-            
+                empty_room_penalty += 1000  # Large penalty
+
             # Priority: fill up rooms, encourage diversity, avoid opening new rooms for few students
             priority = -available_capacity * 100 + diversity_bonus + empty_room_penalty
             return priority
@@ -346,7 +362,6 @@ def improve_assignment_diversity(assignment, students, rooms, room_analysis, max
                         if single_room not in new_analysis.get('single_exam_rooms', []):
                             single_exam_rooms.remove(single_room)
                         break
-                
                 if improved_this_iteration:
                     break
             
