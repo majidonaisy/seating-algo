@@ -382,4 +382,22 @@ def improve_assignment_local_search(assignment, students, rooms, max_iterations=
 
 def is_assignment_valid_local(assignment, students):
     """Quick local validity check for assignment"""
-    student_to_exam = {s: e for s, e
+    student_to_exam = {s: e for s, e in students}
+    # Check for adjacency violations in each room
+    room_positions = defaultdict(dict)  # room_id -> {(row, col): student_id}
+    for student, (room_id, row, col) in assignment.items():
+        room_positions[room_id][(row, col)] = student
+
+    for room_id, pos_dict in room_positions.items():
+        for (row, col), student in pos_dict.items():
+            exam = student_to_exam[student]
+            # Check all 4 adjacent positions
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                adj_pos = (row + dr, col + dc)
+                adj_student = pos_dict.get(adj_pos)
+                if adj_student:
+                    adj_exam = student_to_exam[adj_student]
+                    if adj_exam == exam:
+                        return False  # Adjacency violation: same exam next to each other
+    
+    return True
