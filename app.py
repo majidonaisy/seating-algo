@@ -1,7 +1,7 @@
 from ortools.sat.python import cp_model
 
-def assign_students_to_rooms(students, rooms, exam_room_restrictions=None):
-    """Enhanced version with optimizations"""
+def assign_students_to_rooms(students, rooms, exam_room_restrictions=None, timeout_seconds=300):
+    """Enhanced version with performance optimizations"""
     model = cp_model.CpModel()
     
     if exam_room_restrictions is None:
@@ -33,15 +33,21 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None):
     # Create room mapping
     room_id_to_index = {room[0]: ki for ki, room in enumerate(rooms)}
 
-    # 1) vars x[s, k, r, c]: student s in room k at (r,c) - FIXED
-    x = {}
-    for s in student_ids:  # Use student_ids instead of students
+    # OPTIMIZATION 1: Pre-filter valid room-student combinations
+    valid_assignments = {}
+    for s in student_ids:
         exam = exam_of[s]
+        valid_assignments[s] = []
         for ki, (rid, R, C, skip_rows, skip_cols) in enumerate(rooms):
-            # Check if this room is allowed for this exam
+            # Skip rooms not allowed for this exam
             if exam in exam_room_restrictions and rid not in exam_room_restrictions[exam]:
                 continue
-                
+            valid_assignments[s].append(ki)
+
+    # 1) Create variables only for valid combinations
+    x = {}
+    for s in student_ids:
+        for ki in valid_assignments[s]:
             for r, c in room_positions[ki]:
                 x[s, ki, r, c] = model.NewBoolVar(f"x_{s}_{ki}_{r}_{c}")
 
@@ -95,8 +101,23 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None):
     # 6) objective: minimize rooms used
     model.Minimize(sum(y.values()))
 
-    # 7) solve
+    # 7) OPTIMIZED SOLVER SETTINGS
     solver = cp_model.CpSolver()
+    
+    # Increase timeout
+    solver.parameters.max_time_in_seconds = timeout_seconds
+    
+    # Performance optimizations
+    solver.parameters.num_search_workers = 4  # Use multiple cores
+    solver.parameters.search_branching = cp_model.PORTFOLIO_SEARCH
+    solver.parameters.cp_model_presolve = True
+    solver.parameters.symmetry_level = 2
+    solver.parameters.optimize_with_core = True
+    solver.parameters.linearization_level = 2
+    
+    # Early termination for good solutions
+    solver.parameters.enumerate_all_solutions = False
+    
     status = solver.Solve(model)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return None
