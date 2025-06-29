@@ -63,7 +63,7 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
     room_exam_counts = {rid: defaultdict(int) for rid in room_info.keys()}  # Track exams per room
     room_student_counts = {rid: 0 for rid in room_info.keys()}  # Track students per room
     
-    MIN_GROUP_SIZE_FOR_MIX = 10  # You can adjust this value
+    MIN_GROUP_SIZE_FOR_MIX = 2  # You can adjust this value
 
     for exam, exam_students in sorted_exams:
         print(f"Assigning {len(exam_students)} students for {exam}")
