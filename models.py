@@ -32,7 +32,7 @@ class Room(Base):
     rows = Column(Integer)
     cols = Column(Integer)
     skip_rows = Column(Boolean, default=False)
-    skip_cols = Column(Boolean, default=False)
+    skip_cols = Column(Integer, default=0)  # <-- changed from Boolean to Integer
     # assignments = relationship("Assignment", back_populates="room")
 
 # class Assignment(Base):
@@ -94,7 +94,7 @@ class RoomIn(BaseModel):
     rows: int
     cols: int
     skip_rows: bool
-    skip_cols: bool
+    skip_cols: int  # <-- changed to int
 
 class AssignmentIn(BaseModel):
     student_id: int
@@ -125,7 +125,7 @@ class RoomRequest(BaseModel):
     rows: int
     cols: int
     skip_rows: bool
-    skip_cols: bool
+    skip_cols: int  # <-- changed to int
 
 class AssignRequest(BaseModel):
     students: List[StudentExamRequest]

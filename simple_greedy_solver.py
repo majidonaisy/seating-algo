@@ -28,15 +28,15 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
             if skip_rows and r % 2 != 0:
                 continue
             for c in range(cols):
-                if skip_cols and c % 2 != 0:
+                # If skip_cols is an int > 0, skip every Nth column
+                if isinstance(skip_cols, int) and skip_cols > 0 and c % skip_cols == 0:
                     continue
                 positions.append((r, c))
-        
         room_info[rid] = {
             'positions': positions,
             'capacity': len(positions),
-            'used': set(),  # Track used positions
-            'assignments': {}  # student_id -> (row, col)
+            'used': set(),
+            'assignments': {}
         }
         total_capacity += len(positions)
     
