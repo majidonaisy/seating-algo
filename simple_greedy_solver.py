@@ -6,11 +6,12 @@ Ultra-fast implementation for performance comparison
 import time
 from collections import defaultdict
 import random
+from models import AssignmentWithStudentOut
 
 def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout_seconds=60):
     """
     Simple greedy assignment algorithm
-    10-100x faster than CP-SAT for most cases
+    Returns a list of AssignmentWithStudentOut objects with full student info.
     """
     print(f"🏃‍♂️ Starting Greedy assignment for {len(students)} students")
     start_time = time.time()
@@ -28,7 +29,6 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
             if skip_rows and r % 2 != 0:
                 continue
             for c in range(cols):
-                # If skip_cols is an int > 0, skip every Nth column
                 if isinstance(skip_cols, int) and skip_cols > 0 and c % skip_cols == 0:
                     continue
                 positions.append((r, c))
@@ -46,48 +46,43 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
         print("ERROR: Not enough capacity!")
         return None
 
-    # Step 2: Group students by exam
+    # Step 2: Group students by course_code (was exam)
     exam_groups = defaultdict(list)
     student_to_exam = {}
-    
-    for s, e in students:
-        exam_groups[e].append(s)
-        student_to_exam[s] = e
+    for s in students:
+        # s can be tuple or object, handle both
+        if isinstance(s, tuple):
+            file_number = s[0]
+            course_code = s[4]
+        else:
+            file_number = s.file_number
+            course_code = s.course_code
+        exam_groups[course_code].append(file_number)
+        student_to_exam[file_number] = course_code
 
     # Step 3: Sort exams by size (largest first for better packing)
     sorted_exams = sorted(exam_groups.items(), key=lambda x: len(x[1]), reverse=True)
     
     assignment = {}
-    
-    # Step 4: Assign each exam group with improved strategy
-    room_exam_counts = {rid: defaultdict(int) for rid in room_info.keys()}  # Track exams per room
-    room_student_counts = {rid: 0 for rid in room_info.keys()}  # Track students per room
-    
-    MIN_GROUP_SIZE_FOR_MIX = 4  # You can adjust this value
+    room_exam_counts = {rid: defaultdict(int) for rid in room_info.keys()}
+    room_student_counts = {rid: 0 for rid in room_info.keys()}
+    MIN_GROUP_SIZE_FOR_MIX = 4
 
     for exam, exam_students in sorted_exams:
         print(f"Assigning {len(exam_students)} students for {exam}")
-        
-        # Get available rooms for this exam
         available_rooms = []
         for rid, info in room_info.items():
-            if exam in exam_room_restrictions and rid not in exam_room_restrictions[exam]:
+            if exam_room_restrictions and exam in exam_room_restrictions and rid not in exam_room_restrictions[exam]:
                 continue
             available_rooms.append((rid, info))
         
-        # Sort rooms by priority:
-        # 1. Prefer rooms with the most available capacity
-        # 2. Prefer rooms already in use (to avoid opening new rooms unnecessarily)
-        # 3. Do not allow opening a new room unless all used rooms are at least MIN_USED_ROOM_FILL_PERCENT full
-        MIN_USED_ROOM_FILL_PERCENT = 0.8  # 80% full before opening a new room
+        MIN_USED_ROOM_FILL_PERCENT = 0.8
 
         def room_priority(room_item):
             rid, info = room_item
             available_capacity = len(info['positions']) - len(info['used'])
             students_in_room = room_student_counts[rid]
             exams_in_room = len(room_exam_counts[rid])
-
-            # Calculate fullness of all used rooms
             used_rooms = [rid2 for rid2, count in room_student_counts.items() if count > 0]
             all_used_rooms_full = True
             for rid2 in used_rooms:
@@ -95,45 +90,30 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
                 if fill < MIN_USED_ROOM_FILL_PERCENT:
                     all_used_rooms_full = False
                     break
-
-            # Strongly penalize opening a new room if not all used rooms are full enough
             empty_room_penalty = 0
             if students_in_room == 0 and used_rooms and not all_used_rooms_full:
-                empty_room_penalty = 10000  # Very large penalty
-
-            # Encourage rooms with other exams (diversity)
+                empty_room_penalty = 10000
             diversity_bonus = 0
             if students_in_room > 0 and exams_in_room > 0:
-                diversity_bonus = -50  # Prefer rooms with other exams
-
-            # Strongly penalize opening a new room if only a few students remain
+                diversity_bonus = -50
             few_students_left = len(exam_students) <= 5
             if students_in_room == 0 and few_students_left:
-                empty_room_penalty += 1000  # Large penalty
-
-            # Priority: fill up rooms, encourage diversity, avoid opening new rooms for few students
+                empty_room_penalty += 1000
             priority = -available_capacity * 100 + diversity_bonus + empty_room_penalty
             return priority
         
         available_rooms.sort(key=room_priority)
         
-        # Assign each student in this exam
         i = 0
         while i < len(exam_students):
             assigned = False
             for room_id, room_info_dict in available_rooms:
-                # Always calculate available spots
                 available_spots = len(room_info_dict['positions']) - len(room_info_dict['used'])
-
-                # Check if this room already has a different exam
                 existing_exams = set(room_info_dict['assignments'].keys())
                 existing_exam_types = set(student_to_exam[s] for s in existing_exams)
                 if existing_exam_types and exam not in existing_exam_types:
-                    # Only allow if we can fit at least MIN_GROUP_SIZE_FOR_MIX students
                     if available_spots < MIN_GROUP_SIZE_FOR_MIX:
-                        continue  # Skip this room for this exam
-
-                # Try to assign as many as possible in this room
+                        continue
                 group_assigned = 0
                 for j in range(i, len(exam_students)):
                     student = exam_students[j]
@@ -157,10 +137,8 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
                     assigned = True
                     break
             if not assigned:
-                # Could not assign this student/group, try next student
                 i += 1
-    
-    # Print room utilization summary
+
     print("\n📊 Room Utilization Summary:")
     for rid, info in room_info.items():
         students_count = room_student_counts[rid]
@@ -178,7 +156,9 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
     print(f"\nGreedy assignment completed in {total_time:.3f}s")
     print(f"Assigned {len(assignment)} out of {len(students)} students")
     
-    return assignment
+    # Build output with full student info
+    assignment_with_student = build_assignment_with_student(assignment, students)
+    return [AssignmentWithStudentOut(**a) for a in assignment_with_student]
 
 def find_valid_position(student, exam, room_id, room_info_dict, student_to_exam):
     """Find a valid position for a student in a room"""
@@ -258,7 +238,12 @@ def assign_students_smart_greedy(students, rooms, exam_room_restrictions=None, t
     print("\n📊 Final Assignment Analysis:")
     final_analysis = analyze_room_diversity(improved if improved else assignment, students)
     
-    return improved if improved else assignment
+    final_assignment = improved if improved else assignment
+
+    # Build output with full student info
+    assignment_with_student = build_assignment_with_student(final_assignment, students)
+    # Convert dicts to Pydantic models
+    return [AssignmentWithStudentOut(**a) for a in assignment_with_student]
 
 def analyze_room_diversity(assignment, students):
     """Analyze exam diversity and room utilization"""
@@ -434,3 +419,51 @@ def is_assignment_valid_local(assignment, students):
                         return False  # Adjacency violation: same exam next to each other
     
     return True
+
+def build_assignment_with_student(assignments, students, assignment_date=None):
+    """
+    Build a list of AssignmentWithStudentOut objects from assignments and student info.
+    assignments: dict[file_number] = (room_id, row, col)
+    students: list of dicts or tuples with all student info
+    """
+    # Build a mapping from file_number to student info
+    student_map = {}
+    for s in students:
+        # If s is a tuple: (file_number, course_code, ...)
+        if isinstance(s, tuple):
+            # Adjust indices as per your data structure
+            file_number = s[0]
+            student_map[file_number] = {
+                "file_number": s[0],
+                "name": s[1],
+                "major": s[2],
+                "examination_date": s[3],
+                "course_code": s[4],
+                "course_name": s[5],
+                "language": s[6],
+                "academic_year": s[7],
+                "time": s[8],
+            }
+        else:
+            # If s is a dict or Pydantic model
+            student_map[s.file_number] = s
+
+    result = []
+    for file_number, (room_id, row, col) in assignments.items():
+        student = student_map[file_number]
+        result.append({
+            "file_number": student["file_number"],
+            "name": student["name"],
+            "major": student["major"],
+            "examination_date": student["examination_date"],
+            "course_code": student["course_code"],
+            "course_name": student["course_name"],
+            "language": student["language"],
+            "academic_year": student["academic_year"],
+            "time": student["time"],
+            "room_id": room_id,
+            "row": row,
+            "col": col,
+            "date": assignment_date or student.get("examination_date"),
+        })
+    return result

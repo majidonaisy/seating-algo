@@ -1,7 +1,13 @@
 from ortools.sat.python import cp_model
+from models import AssignmentWithStudentOut
+from simple_greedy_solver import build_assignment_with_student
 
 def assign_students_to_rooms(students, rooms, exam_room_restrictions=None, timeout_seconds=300):
-    """Enhanced version with performance optimizations and debugging"""
+    """
+    Enhanced version with performance optimizations and debugging.
+    Now expects students as a list of dicts or objects with file_number, course_code, etc.
+    Returns a list of AssignmentWithStudentOut objects.
+    """
     model = cp_model.CpModel()
     
     if exam_room_restrictions is None:
@@ -16,7 +22,7 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None, timeo
             if skip_rows and r % 2 != 0:
                 continue
             for c in range(C):
-                if skip_cols and c % 2 != 0:
+                if isinstance(skip_cols, int) and skip_cols > 0 and c % skip_cols == 0:
                     continue
                 positions.append((r, c))
         room_positions[ki] = positions
@@ -28,32 +34,36 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None, timeo
     if total_capacity < len(students):
         print("ERROR: Not enough room capacity for all students!")
         return None
-    
-    # Build exam groupings
+
+    # Build exam groupings and mappings
     exam_to_students = {}
     exam_of = {}
     student_ids = []
-    
-    for s, e in students:
-        exam_to_students.setdefault(e, []).append(s)
-        exam_of[s] = e
-        student_ids.append(s)
+    for s in students:
+        # s can be a dict/object or tuple
+        if isinstance(s, tuple):
+            file_number = s[0]
+            course_code = s[4]
+        else:
+            file_number = s.file_number
+            course_code = s.course_code
+        exam_to_students.setdefault(course_code, []).append(file_number)
+        exam_of[file_number] = course_code
+        student_ids.append(file_number)
     
     print(f"Exam groups: {exam_to_students}")
-    
+
     # OPTIMIZATION 1: Pre-filter valid room-student combinations
     valid_assignments = {}
     for s in student_ids:
         exam = exam_of[s]
         valid_assignments[s] = []
         for ki, (rid, R, C, skip_rows, skip_cols) in enumerate(rooms):
-            # Skip rooms not allowed for this exam
             if exam in exam_room_restrictions and rid not in exam_room_restrictions[exam]:
                 print(f"Student {s} (exam {exam}) cannot use room {rid} due to restrictions")
                 continue
             valid_assignments[s].append(ki)
     
-    # Check if all students have at least one valid room
     for s in student_ids:
         if not valid_assignments[s]:
             print(f"ERROR: Student {s} has no valid rooms!")
@@ -69,7 +79,7 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None, timeo
             for r, c in room_positions[ki]:
                 x[s, ki, r, c] = model.NewBoolVar(f"x_{s}_{ki}_{r}_{c}")
                 variable_count += 1
-    
+
     print(f"Created {variable_count} variables")
 
     # 2) room-used indicator
@@ -186,7 +196,10 @@ def assign_students_to_rooms(students, rooms, exam_room_restrictions=None, timeo
                     break
     
     print(f"Assigned {len(result)} students")
-    return result
+
+    # Build output with full student info
+    assignment_with_student = build_assignment_with_student(result, students)
+    return [AssignmentWithStudentOut(**a) for a in assignment_with_student]
 
 def visualize_assignment(assignment, rooms, students):
     """

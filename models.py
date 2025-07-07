@@ -82,10 +82,14 @@ class StudentIn(BaseModel):
     major: str
 
 class StudentOut(BaseModel):
-    id: int
-    name: str
-    major: str
-    
+    file_number: int
+    examination_date: date
+    course_code: str
+    course_name: str
+    language: str
+    academic_year: str
+    time: str
+
     class Config:
         from_attributes = True
 
@@ -135,5 +139,23 @@ class AssignRequest(BaseModel):
 class AssignResponse(BaseModel):
     assignments: List[AssignmentOut]
     
+    class Config:
+        from_attributes = True
+
+class AssignmentWithStudentOut(BaseModel):
+    file_number: int
+    name: str
+    major: str
+    examination_date: date
+    course_code: str
+    course_name: str
+    language: str
+    academic_year: str
+    time: str
+    room_id: str
+    row: int
+    col: int
+    date: date
+
     class Config:
         from_attributes = True
