@@ -246,7 +246,8 @@ def analyze_room_diversity(assignment, students):
     if not assignment:
         return {}
     
-    student_to_exam = {s: e for s, e in students}
+    # students is a list of StudentExamRequest (Pydantic models)
+    student_to_exam = {s.file_number: s.course_code for s in students}
     room_stats = defaultdict(lambda: {'exams': defaultdict(int), 'total': 0})
     
     # Collect room statistics
@@ -289,7 +290,7 @@ def improve_assignment_diversity(assignment, students, rooms, room_analysis, max
         return None
     
     current_assignment = assignment.copy()
-    student_to_exam = {s: e for s, e in students}
+    student_to_exam = {s.file_number: s.course_code for s in students}
     single_exam_rooms = room_analysis.get('single_exam_rooms', [])
     
     if not single_exam_rooms:
@@ -361,7 +362,7 @@ def improve_assignment_local_search(assignment, students, rooms, max_iterations=
         return None
     
     current_assignment = assignment.copy()
-    student_to_exam = {s: e for s, e in students}
+    student_to_exam = {s.file_number: s.course_code for s in students}
     
     for iteration in range(max_iterations):
         improved = False
@@ -396,7 +397,7 @@ def improve_assignment_local_search(assignment, students, rooms, max_iterations=
 
 def is_assignment_valid_local(assignment, students):
     """Quick local validity check for assignment"""
-    student_to_exam = {s: e for s, e in students}
+    student_to_exam = {s.file_number: s.course_code for s in students}
     # Check for adjacency violations in each room
     room_positions = defaultdict(dict)  # room_id -> {(row, col): student_id}
     for student, (room_id, row, col) in assignment.items():
