@@ -199,46 +199,40 @@ def is_position_valid(pos, exam, room_info_dict, student_to_exam):
     return True
 
 def assign_students_smart_greedy(students, rooms, exam_room_restrictions=None, timeout_seconds=60):
-    """
-    Smart greedy with improved room utilization and exam diversity
-    """
     print(f"🧠 Starting Smart Greedy assignment for {len(students)} students")
     start_time = time.time()
     
     # First try improved greedy
-    assignment = assign_students_greedy(students, rooms, exam_room_restrictions, timeout_seconds//2)
-    
-    if not assignment or len(assignment) < len(students):
+    assignment_list = assign_students_greedy(students, rooms, exam_room_restrictions, timeout_seconds//2)
+    if not assignment_list or len(assignment_list) < len(students):
         print("Improved greedy failed, returning partial result...")
-        return assignment
-    
-    # Analyze current assignment
+        return assignment_list
+
+    # Convert assignment_list back to assignment dict for analysis/optimization
+    assignment = {a.file_number: (a.room_id, a.row, a.col) for a in assignment_list}
+
     print("\n🔍 Analyzing assignment quality...")
     room_analysis = analyze_room_diversity(assignment, students)
-    
-    # Try to improve diversity and utilization
+
     print("📈 Improving assignment with diversity optimization...")
     improved = improve_assignment_diversity(assignment, students, rooms, room_analysis, max_iterations=50)
-    
-    # Try standard local search for further improvements
+
     if improved:
         print("🔄 Applying local search optimization...")
         final_improved = improve_assignment_local_search(improved, students, rooms, max_iterations=50)
         if final_improved:
             improved = final_improved
-    
+
     total_time = time.time() - start_time
     print(f"Smart greedy completed in {total_time:.3f}s")
-    
-    # Final analysis
+
     print("\n📊 Final Assignment Analysis:")
     final_analysis = analyze_room_diversity(improved if improved else assignment, students)
-    
+
     final_assignment = improved if improved else assignment
 
     # Build output with full student info
     assignment_with_student = build_assignment_with_student(final_assignment, students)
-    # Convert dicts to Pydantic models
     return [AssignmentWithStudentOut(**a) for a in assignment_with_student]
 
 def analyze_room_diversity(assignment, students):
