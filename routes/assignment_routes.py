@@ -15,7 +15,7 @@ router = APIRouter(
 def assign(req: AssignRequest, db: Session = Depends(get_db)):
     try:
         print(f"Received assignment request with {len(req.students)} students and {len(req.rooms)} rooms")
-        
+        # Pass full student info to the service (new schema)
         assignments = assignment_service.process_assignment(db, req)
         
         if assignments is None:

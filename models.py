@@ -121,8 +121,15 @@ class AssignmentOut(BaseModel):
         from_attributes = True
 
 class StudentExamRequest(BaseModel):
-    student_id: int
-    exam_name: str
+    file_number: int
+    name: str
+    major: str
+    examination_date: date
+    course_code: str
+    course_name: str
+    language: str
+    academic_year: str
+    time: str
 
 class RoomRequest(BaseModel):
     room_id: str
@@ -155,7 +162,11 @@ class AssignmentWithStudentOut(BaseModel):
     room_id: str
     row: int
     col: int
-    date: date
+    class Config:
+        from_attributes = True
 
+class AssignResponse(BaseModel):
+    assignments: List[AssignmentWithStudentOut]
+    
     class Config:
         from_attributes = True

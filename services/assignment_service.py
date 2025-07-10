@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from models import AssignmentIn, AssignmentOut, AssignRequest
+from models import AssignmentIn, AssignmentOut, AssignRequest, AssignmentWithStudentOut
 from datetime import date
 import time
 import crud
@@ -45,7 +45,8 @@ def process_assignment(db: Session, request: AssignRequest, solver_preference="s
         print("Processing assignment request...")
         start_time = time.time()
         
-        students = [(student.student_id, student.exam_name) for student in request.students]
+        # Use the new StudentExamRequest model directly (all fields present)
+        students = [s for s in request.students]  # Already validated Pydantic models
         room_tuples = [(room.room_id, room.rows, room.cols, room.skip_rows, room.skip_cols) 
                       for room in request.rooms]
         exam_room_restrictions = request.exam_room_restrictions or {}
@@ -155,15 +156,14 @@ def process_assignment(db: Session, request: AssignRequest, solver_preference="s
             print(f"❌ All solvers failed to find a solution")
             return None
 
-        # Convert to assignments
+        # result is a list of AssignmentWithStudentOut objects
         assignments = []
-        for student_id, (rid, r, c) in result.items():
-            exam_name = next(s.exam_name for s in request.students 
-                            if s.student_id == student_id)
-            assignments.append(AssignmentOut(
-                id=0, student_id=student_id, room_id=rid,
-                exam_name=exam_name, row=r, col=c, date=date.today()
-            ))
+        for a in result:
+            # a is already an AssignmentWithStudentOut or dict compatible with it
+            if isinstance(a, dict):
+                assignments.append(AssignmentWithStudentOut(**a))
+            else:
+                assignments.append(a)
         
         total_time = time.time() - start_time
         print(f"✅ Assignment completed using {solver_used}")

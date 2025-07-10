@@ -50,13 +50,9 @@ def assign_students_greedy(students, rooms, exam_room_restrictions=None, timeout
     exam_groups = defaultdict(list)
     student_to_exam = {}
     for s in students:
-        # s can be tuple or object, handle both
-        if isinstance(s, tuple):
-            file_number = s[0]
-            course_code = s[4]
-        else:
-            file_number = s.file_number
-            course_code = s.course_code
+        # s is now an object or dict with named fields
+        file_number = s.file_number if hasattr(s, "file_number") else s["file_number"]
+        course_code = s.course_code if hasattr(s, "course_code") else s["course_code"]
         exam_groups[course_code].append(file_number)
         student_to_exam[file_number] = course_code
 
@@ -424,29 +420,24 @@ def build_assignment_with_student(assignments, students, assignment_date=None):
     """
     Build a list of AssignmentWithStudentOut objects from assignments and student info.
     assignments: dict[file_number] = (room_id, row, col)
-    students: list of dicts or tuples with all student info
+    students: list of objects or dicts with all student info
     """
     # Build a mapping from file_number to student info
     student_map = {}
     for s in students:
-        # If s is a tuple: (file_number, course_code, ...)
-        if isinstance(s, tuple):
-            # Adjust indices as per your data structure
-            file_number = s[0]
-            student_map[file_number] = {
-                "file_number": s[0],
-                "name": s[1],
-                "major": s[2],
-                "examination_date": s[3],
-                "course_code": s[4],
-                "course_name": s[5],
-                "language": s[6],
-                "academic_year": s[7],
-                "time": s[8],
-            }
-        else:
-            # If s is a dict or Pydantic model
-            student_map[s.file_number] = s
+        # s is now an object or dict with named fields
+        file_number = s.file_number if hasattr(s, "file_number") else s["file_number"]
+        student_map[file_number] = {
+            "file_number": file_number,
+            "name": s.name if hasattr(s, "name") else s["name"],
+            "major": s.major if hasattr(s, "major") else s["major"],
+            "examination_date": s.examination_date if hasattr(s, "examination_date") else s["examination_date"],
+            "course_code": s.course_code if hasattr(s, "course_code") else s["course_code"],
+            "course_name": s.course_name if hasattr(s, "course_name") else s["course_name"],
+            "language": s.language if hasattr(s, "language") else s["language"],
+            "academic_year": s.academic_year if hasattr(s, "academic_year") else s["academic_year"],
+            "time": s.time if hasattr(s, "time") else s["time"],
+        }
 
     result = []
     for file_number, (room_id, row, col) in assignments.items():
